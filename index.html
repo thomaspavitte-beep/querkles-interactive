@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Querkles &middot; Scroll to Colour</title>
+<style>
+  :root{ --ink:#111418; --bg:#fbfbf9; --accent:#e4572e; --muted:#8a9099;
+    --art-ink:#231f20;
+    --tone-1:#d1d3d4; --tone-2:#a7a9ac; --tone-3:#808285; --tone-4:#58595b; --tone-5:#231f20; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  #track{height:700vh;position:relative;}
+  #stage{position:sticky;top:0;height:100vh;height:100svh;display:flex;align-items:center;
+    justify-content:center;overflow:hidden;}
+  #art{width:min(92vw,calc(90svh * var(--ar,0.694)));display:block;}
+
+  /* circle outlines: grow from own centre + fade */
+  #circles :is(path,circle,ellipse){fill:none;stroke:var(--art-ink);stroke-width:.35;stroke-miterlimit:10;}
+  #circles g{transform-box:fill-box;transform-origin:center;transform:scale(0);opacity:0;
+    transition:transform .45s cubic-bezier(.22,1,.36,1),opacity .35s ease;}
+  #circles g.on{transform:scale(1);opacity:1;}
+  #circles{transition:opacity .5s ease;}
+  body.nocircles #circles{opacity:0;}
+  @media (prefers-reduced-motion: reduce){
+    #circles g{transition:none;}
+  }
+
+  /* colour segments: fade only, never transformed */
+  .toneG :is(path,circle,polygon,rect,ellipse){transition:fill .5s ease;}
+  #toneG1 :is(path,circle,polygon,rect,ellipse){fill:var(--tone-1);}
+  #toneG2 :is(path,circle,polygon,rect,ellipse){fill:var(--tone-2);}
+  #toneG3 :is(path,circle,polygon,rect,ellipse){fill:var(--tone-3);}
+  #toneG4 :is(path,circle,polygon,rect,ellipse){fill:var(--tone-4);}
+  #toneG5 :is(path,circle,polygon,rect,ellipse){fill:var(--tone-5);}
+
+  #bar{position:fixed;left:0;top:0;height:3px;width:0%;background:var(--accent);z-index:5;}
+  #hud{position:fixed;left:0;right:0;top:0;padding:16px 20px;display:flex;align-items:baseline;gap:14px;pointer-events:none;z-index:4;}
+  #title{font-size:15px;font-weight:700;}
+  #title span{font-weight:400;color:var(--muted);}
+  #credit{font-size:11px;color:var(--muted);}
+  #count{margin-left:auto;font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;color:var(--muted);white-space:nowrap;}
+  @media (max-width:600px){
+    #title span,#credit{display:none;}
+  }
+  #btns{position:fixed;right:20px;bottom:22px;z-index:6;display:flex;gap:8px;}
+  #btns button{font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:#fff;
+    border:1px solid #d7dbe0;border-radius:999px;padding:7px 14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05);}
+  #btns button:hover{border-color:var(--accent);color:var(--accent);}
+  #hint{position:fixed;left:0;right:0;bottom:26px;text-align:center;font-size:13px;color:var(--muted);transition:opacity .4s;pointer-events:none;}
+  #done{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:var(--ink);color:#fff;
+    padding:9px 18px;border-radius:999px;font-size:13px;font-weight:600;opacity:0;transition:opacity .5s;pointer-events:none;z-index:5;}
+  #done.show{opacity:1;}
+
+  /* artworks switcher (populated from art/manifest.js) */
+  #gallery{position:fixed;right:20px;bottom:64px;background:#fff;border:1px solid #d7dbe0;border-radius:14px;
+    padding:8px;z-index:7;box-shadow:0 8px 28px rgba(0,0,0,.12);display:none;max-height:60vh;overflow:auto;
+    min-width:240px;max-width:calc(100vw - 40px);}
+  #gallery.open{display:block;}
+  .galItem{display:flex;gap:10px;align-items:center;padding:7px 9px;border-radius:10px;text-decoration:none;color:var(--ink);}
+  .galItem:hover{background:#f2f4f6;}
+  .galItem.current{outline:2px solid var(--accent);}
+  .galCover{width:34px;height:46px;border-radius:4px;background:#e8ebee;flex:0 0 auto;display:flex;
+    align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--muted);overflow:hidden;}
+  .galCover img{width:100%;height:100%;object-fit:cover;display:block;}
+  .galTitle{font-size:13px;font-weight:700;}
+  .galBook{font-size:11px;color:var(--muted);}
+
+  /* book card shown at the completion moment */
+  #bookCard{position:fixed;left:50%;bottom:118px;transform:translateX(-50%);display:flex;gap:12px;align-items:center;
+    background:#fff;border:1px solid #d7dbe0;border-radius:14px;padding:10px 14px;opacity:0;transition:opacity .5s;
+    pointer-events:none;z-index:5;box-shadow:0 4px 18px rgba(0,0,0,.1);}
+  #bookCard.show{opacity:1;pointer-events:auto;}
+  #bookCard .galCover{width:44px;height:60px;font-size:18px;}
+  .bcFrom{font-size:11px;color:var(--muted);}
+  .bcBook{font-size:13px;font-weight:700;max-width:240px;}
+  .bcBuy{font-size:12px;font-weight:600;color:var(--accent);text-decoration:none;}
+  .bcBuy:hover{text-decoration:underline;}
+
+  /* colour panel */
+  #panel{position:fixed;right:20px;bottom:64px;background:#fff;border:1px solid #d7dbe0;border-radius:14px;
+    padding:12px;z-index:7;box-shadow:0 8px 28px rgba(0,0,0,.12);display:none;max-height:70vh;overflow:auto;
+    width:250px;max-width:calc(100vw - 40px);}
+  #panel.open{display:block;}
+  .pLabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:4px 4px 8px;}
+  .preset{display:flex;align-items:center;gap:10px;width:100%;padding:7px 9px;border:none;background:none;
+    border-radius:10px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:var(--ink);text-align:left;}
+  .preset:hover{background:#f2f4f6;}
+  .preset.current{outline:2px solid var(--accent);}
+  .strip{display:flex;border-radius:5px;overflow:hidden;flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);}
+  .strip i{width:13px;height:20px;}
+  #panel hr{border:none;border-top:1px solid #eceff2;margin:10px 0;}
+  #wells{display:flex;gap:8px;padding:0 4px;}
+  .well{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--muted);}
+  .well input{width:34px;height:34px;padding:0;border:1px solid #d7dbe0;border-radius:8px;background:#fff;cursor:pointer;}
+  .well input::-webkit-color-swatch-wrapper{padding:3px;}
+  .well input::-webkit-color-swatch{border:none;border-radius:5px;}
+  #toneTip{font-size:11px;color:var(--muted);margin:8px 4px 2px;}
+</style>
+</head>
+<body>
+  <div id="bar"></div>
+  <div id="hud">
+    <div id="title">Querkles <span>&middot; scroll to colour</span></div>
+    <div id="credit">Querkles &middot; by Thomas Pavitte</div>
+    <div id="count"></div>
+  </div>
+
+  <div id="track">
+    <div id="stage">
+      <svg id="art" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div id="btns">
+    <button id="galBtn" style="display:none">Artworks</button>
+    <button id="colBtn">Colours</button>
+    <button id="circBtn">Hide circles</button>
+  </div>
+
+  <div id="gallery"></div>
+
+  <div id="panel">
+    <div class="pLabel">Palettes</div>
+    <div id="presets"></div>
+    <hr />
+    <div class="pLabel">Your colours</div>
+    <div id="wells"></div>
+    <div id="toneTip">Lightest &rarr; darkest works best.</div>
+  </div>
+
+  <div id="bookCard"></div>
+  <div id="hint">Scroll to reveal</div>
+  <div id="done">&#10003; Complete</div>
+
+<script>
+(function(){
+  if("scrollRestoration" in history) history.scrollRestoration="manual";
+  window.scrollTo(0,0);
+  window.addEventListener("load",()=>window.scrollTo(0,0));
+
+  const svgNS="http://www.w3.org/2000/svg";
+  const art=document.getElementById("art");
+  const bar=document.getElementById("bar");
+  const count=document.getElementById("count");
+  const hint=document.getElementById("hint");
+  const done=document.getElementById("done");
+  const bookCard=document.getElementById("bookCard");
+
+  /* ---------- palettes (tone 1 lightest ... tone 5 darkest) ---------- */
+  const PRESETS=[
+    {name:"Graphite",   tones:["#d1d3d4","#a7a9ac","#808285","#58595b","#231f20"]},
+    {name:"Terracotta", tones:["#f7ddc8","#eeb894","#d98a5b","#b05a30","#5f2a14"]},
+    {name:"Ocean",      tones:["#d9e6f2","#aac7e3","#6f9cc9","#3d6699","#1a2f52"]},
+    {name:"Moss",       tones:["#e0e9d3","#bad3a2","#8bb069","#557d3c","#26401b"]},
+    {name:"Ultraviolet",tones:["#ead9f6","#cfa9e9","#a672d3","#7439a6","#3a1260"]}
+  ];
+
+  /* ---------- SVG helpers ---------- */
+  async function loadSvg(url){
+    const res=await fetch(url);
+    if(!res.ok) throw new Error(url+" -> "+res.status);
+    return new DOMParser().parseFromString(await res.text(),"image/svg+xml").documentElement;
+  }
+
+  // Registration: match <circle> elements between the two exports by radius and
+  // take the most common (dx,dy). Works whenever the artwork has a few plain
+  // circles (beads, dots, earrings...) present in both files.
+  function autoOffset(coloursRoot,circlesRoot){
+    const get=root=>[...root.querySelectorAll("circle")].map(c=>({
+      x:+c.getAttribute("cx"),y:+c.getAttribute("cy"),r:+c.getAttribute("r")}));
+    const cc=get(coloursRoot),kc=get(circlesRoot);
+    const buckets={};
+    for(const a of cc)for(const b of kc){
+      if(Math.abs(a.r-b.r)>0.05)continue;
+      const dx=b.x-a.x,dy=b.y-a.y;
+      const key=Math.round(dx*5)+","+Math.round(dy*5); // 0.2-unit buckets
+      (buckets[key]=buckets[key]||[]).push([dx,dy]);
+    }
+    let best=null;
+    for(const k in buckets)if(!best||buckets[k].length>best.length)best=buckets[k];
+    if(!best||best.length<3)return null;
+    const dx=best.reduce((s,p)=>s+p[0],0)/best.length;
+    const dy=best.reduce((s,p)=>s+p[1],0)/best.length;
+    return [Math.round(dx*10)/10,Math.round(dy*10)/10];
+  }
+
+  // Tone detection: top-level groups of colours.svg, sorted light -> dark by
+  // the fill colour their shapes use (from the embedded stylesheet or inline).
+  function toneGroupsOf(root){
+    const styleText=[...root.querySelectorAll("style")].map(s=>s.textContent).join("\n");
+    const classFill={};
+    for(const m of styleText.matchAll(/\.(st\d+)\s*{[^}]*fill:\s*(#[0-9a-fA-F]{3,6})/g))
+      classFill[m[1]]=m[2];
+    const lum=hex=>{
+      let h=hex.slice(1);
+      if(h.length===3)h=h.replace(/./g,c=>c+c);
+      const n=parseInt(h,16);
+      return 0.2126*(n>>16&255)+0.7152*(n>>8&255)+0.0722*(n&255);
+    };
+    const groups=[...root.children].filter(el=>el.tagName==="g");
+    const scored=groups.map(g=>{
+      const shape=g.querySelector("[class],[fill]");
+      let fill=null;
+      if(shape){
+        const cls=shape.getAttribute("class");
+        fill=(cls&&classFill[cls.split(/\s+/)[0]])||shape.getAttribute("fill");
+      }
+      return {g,lum:fill?lum(fill):0};
+    });
+    scored.sort((a,b)=>b.lum-a.lum); // lightest first
+    return scored.map(s=>s.g);
+  }
+
+  /* ---------- boot one artwork ---------- */
+  async function boot(entry,list){
+    const dir="art/"+entry.id+"/";
+    const [coloursRoot,circlesRoot]=await Promise.all([
+      loadSvg(dir+"colours.svg"),loadSvg(dir+"circles.svg")
+    ]);
+
+    // stage geometry from the circles export
+    const vb=(circlesRoot.getAttribute("viewBox")||"0 0 800 1100").split(/[\s,]+/).map(Number);
+    art.setAttribute("viewBox",vb.join(" "));
+    art.style.setProperty("--ar",vb[2]/vb[3]);
+
+    // colours below, registered into the circles' coordinate space
+    const off=autoOffset(coloursRoot,circlesRoot)||entry.offset||[0,0];
+    if(!autoOffset(coloursRoot,circlesRoot)&&!entry.offset)
+      console.warn("No registration found for '"+entry.id+"' — add offset:[dx,dy] to its manifest entry.");
+    const colourLayer=document.createElementNS(svgNS,"g");
+    colourLayer.setAttribute("transform","translate("+off[0]+" "+off[1]+")");
+    const toneGroups=toneGroupsOf(coloursRoot).slice(0,5);
+    toneGroups.forEach((g,i)=>{
+      g.removeAttribute("id");
+      g.setAttribute("id","toneG"+(i+1));
+      g.setAttribute("class","toneG");
+      g.style.opacity=0;
+      colourLayer.appendChild(g);
+    });
+    art.appendChild(colourLayer);
+    const NT=toneGroups.length;
+
+    // circles on top, one group per circle
+    const circleLayer=document.createElementNS(svgNS,"g");
+    circleLayer.setAttribute("id","circles");
+    let circleGroups=[...circlesRoot.querySelectorAll('g[id^="Layer"]')];
+    if(circleGroups.length<10)
+      circleGroups=[...circlesRoot.children].filter(el=>el.tagName==="g");
+    for(const g of circleGroups){g.removeAttribute("class");circleLayer.appendChild(g);}
+    art.appendChild(circleLayer);
+    const NC=circleGroups.length;
+
+    // per-artwork HUD
+    const t=document.getElementById("title");
+    t.textContent=entry.title+" ";
+    const sp=document.createElement("span");sp.textContent="· scroll to colour";t.appendChild(sp);
+    document.getElementById("credit").textContent=entry.credit||"Querkles · by Thomas Pavitte";
+    document.title=entry.title+" · Querkles";
+    done.textContent="✓ Complete — "+NC+" circles, "+NT+" tones";
+
+    // completion book card
+    const info=list.find(a=>a.id===entry.id);
+    if(info&&info.book){
+      bookCard.appendChild(coverEl(info));
+      const tx=document.createElement("div");
+      const l1=document.createElement("div");l1.className="bcFrom";l1.textContent="From the book";
+      const l2=document.createElement("div");l2.className="bcBook";l2.textContent=info.book;
+      tx.appendChild(l1);tx.appendChild(l2);
+      if(info.buy){
+        const a=document.createElement("a");a.className="bcBuy";a.href=info.buy;
+        a.target="_blank";a.rel="noopener";a.textContent="Get the book";
+        tx.appendChild(a);
+      }
+      bookCard.appendChild(tx);
+      bookCard.dataset.ready="1";
+    }
+
+    /* ----- scroll choreography ----- */
+    const CIRC_A=0.02,CIRC_B=0.26,TONE_A=0.28,TONE_W=0.6/NT;
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    let cutoff=0,ticking=false;
+
+    function update(){
+      ticking=false;
+      const max=document.getElementById("track").offsetHeight-window.innerHeight;
+      const p=max>0?clamp(window.scrollY/max,0,1):0;
+      bar.style.width=(p*100).toFixed(2)+"%";
+
+      const target=Math.round(clamp((p-CIRC_A)/(CIRC_B-CIRC_A),0,1)*NC);
+      if(target>cutoff){for(let i=cutoff;i<target;i++)circleGroups[i].classList.add("on");}
+      else if(target<cutoff){for(let i=target;i<cutoff;i++)circleGroups[i].classList.remove("on");}
+      cutoff=target;
+
+      let toneDone=0;
+      for(let i=0;i<NT;i++){
+        const a=TONE_A+i*TONE_W;
+        const o=clamp((p-a)/TONE_W,0,1);
+        toneGroups[i].style.opacity=o;
+        if(o>=1)toneDone=i+1;
+      }
+
+      if(p<TONE_A-0.005)count.textContent="Circle "+cutoff+" / "+NC;
+      else count.textContent="Tone "+toneDone+" / "+NT;
+
+      done.classList.toggle("show",p>0.92);
+      bookCard.classList.toggle("show",p>0.92&&bookCard.dataset.ready==="1");
+      if(p>0.9){hint.textContent="Try your own colours ↘";hint.style.opacity=1;}
+      else hint.style.opacity=p>0.02?0:1;
+    }
+    addEventListener("scroll",()=>{if(!ticking){ticking=true;requestAnimationFrame(update);}},{passive:true});
+    addEventListener("resize",update);
+    update();
+
+    buildColourPanel(NT);
+  }
+
+  /* ---------- colours panel ---------- */
+  function buildColourPanel(NT){
+    const presetsEl=document.getElementById("presets");
+    const wellsEl=document.getElementById("wells");
+    const wells=[];
+    const pick=(src,i)=>src[NT===1?4:Math.round(i*(src.length-1)/(NT-1))];
+    let tones=PRESETS[0].tones.slice(0,NT).map((_,i)=>pick(PRESETS[0].tones,i));
+
+    function applyTones(){
+      const rs=document.documentElement.style;
+      tones.forEach((c,i)=>rs.setProperty("--tone-"+(i+1),c));
+      wells.forEach((w,i)=>w.value=tones[i]);
+      [...presetsEl.children].forEach(btn=>{
+        btn.classList.toggle("current",btn.dataset.tones===tones.join());
+      });
+    }
+    for(const pr of PRESETS){
+      const prTones=pr.tones.map((_,i)=>i).slice(0,NT).map(i=>pick(pr.tones,i));
+      const b=document.createElement("button");
+      b.className="preset";
+      b.dataset.tones=prTones.join();
+      const strip=document.createElement("span");
+      strip.className="strip";
+      for(const c of prTones){const i=document.createElement("i");i.style.background=c;strip.appendChild(i);}
+      b.appendChild(strip);
+      b.appendChild(document.createTextNode(pr.name));
+      b.addEventListener("click",()=>{tones=prTones.slice();applyTones();});
+      presetsEl.appendChild(b);
+    }
+    for(let i=0;i<NT;i++){
+      const d=document.createElement("label");
+      d.className="well";
+      const inp=document.createElement("input");
+      inp.type="color";inp.value=tones[i];
+      inp.addEventListener("input",()=>{tones[i]=inp.value;applyTones();});
+      d.appendChild(inp);
+      d.appendChild(document.createTextNode(i+1));
+      wellsEl.appendChild(d);wells.push(inp);
+    }
+    applyTones();
+  }
+
+  /* ---------- gallery / cover tiles ---------- */
+  function coverEl(a){
+    const d=document.createElement("div");d.className="galCover";
+    function letter(){
+      let n=a.book||a.title||"?";
+      if(n.indexOf(":")>-1)n=n.slice(n.lastIndexOf(":")+1);
+      d.textContent=n.trim().replace(/^The\s+/i,"").charAt(0).toUpperCase();
+    }
+    if(a.cover){
+      const img=document.createElement("img");img.src=a.cover;img.alt="";
+      img.onerror=function(){img.remove();letter();};
+      d.appendChild(img);
+    }else letter();
+    return d;
+  }
+
+  function buildGallery(list,cur){
+    const gal=document.getElementById("gallery");
+    list.forEach(a=>{
+      const item=document.createElement("a");
+      item.className="galItem"+(a.id===cur.id?" current":"");
+      item.href="?art="+encodeURIComponent(a.id);
+      item.appendChild(coverEl(a));
+      const tx=document.createElement("div");
+      const t1=document.createElement("div");t1.className="galTitle";t1.textContent=a.title;
+      const t2=document.createElement("div");t2.className="galBook";t2.textContent=a.book||"";
+      tx.appendChild(t1);tx.appendChild(t2);item.appendChild(tx);
+      gal.appendChild(item);
+    });
+    const btn=document.getElementById("galBtn");
+    btn.style.display="";
+    btn.addEventListener("click",e=>{e.stopPropagation();
+      document.getElementById("panel").classList.remove("open");
+      gal.classList.toggle("open");});
+    document.addEventListener("pointerdown",e=>{
+      if(!gal.contains(e.target)&&e.target!==btn)gal.classList.remove("open");});
+  }
+
+  /* ---------- buttons ---------- */
+  const panel=document.getElementById("panel");
+  const colBtn=document.getElementById("colBtn");
+  colBtn.addEventListener("click",e=>{e.stopPropagation();
+    document.getElementById("gallery").classList.remove("open");
+    panel.classList.toggle("open");});
+  document.addEventListener("pointerdown",e=>{
+    if(!panel.contains(e.target)&&e.target!==colBtn)panel.classList.remove("open");});
+  document.getElementById("circBtn").addEventListener("click",e=>{
+    const off=document.body.classList.toggle("nocircles");
+    e.target.textContent=off?"Show circles":"Hide circles";
+  });
+
+  /* ---------- manifest + start ---------- */
+  const FALLBACK=[{id:"frida",title:"Frida",book:"Querkles",cover:"covers/querkles.jpg"}];
+  function start(list){
+    const param=(new URLSearchParams(location.search).get("art")||"").toLowerCase();
+    const entry=(/^[a-z0-9-]+$/.test(param)&&list.find(a=>a.id===param))||list[0];
+    buildGallery(list,entry);
+    boot(entry,list).catch(err=>{
+      console.error(err);
+      count.textContent="Couldn't load artwork";
+    });
+  }
+  const s=document.createElement("script");
+  s.src="art/manifest.js";
+  s.onload=()=>start(Array.isArray(window.QUERKLES_MANIFEST)&&window.QUERKLES_MANIFEST.length?window.QUERKLES_MANIFEST:FALLBACK);
+  s.onerror=()=>start(FALLBACK);
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
