@@ -48,7 +48,16 @@
   #btns button{font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:#fff;
     border:1px solid #d7dbe0;border-radius:999px;padding:7px 14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05);}
   #btns button:hover{border-color:var(--accent);color:var(--accent);}
-  #hint{position:fixed;left:0;right:0;bottom:26px;text-align:center;font-size:13px;color:var(--muted);transition:opacity .4s;pointer-events:none;}
+  /* initial hint: large, centred over the (still empty) canvas so it's the first thing you read */
+  #hint{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:clamp(22px,4.6vw,30px);font-weight:600;color:var(--muted);
+    transition:opacity .4s;pointer-events:none;z-index:4;}
+  #hint span{animation:hintBounce 1.8s ease-in-out infinite;}
+  @keyframes hintBounce{0%,100%{transform:translateY(0);}50%{transform:translateY(7px);}}
+  /* end hint: small, tucked at the bottom so it never covers the finished artwork */
+  #hint.end{inset:auto 0 26px 0;display:block;text-align:center;font-size:13px;font-weight:400;}
+  #hint.end span{animation:none;}
+  @media (prefers-reduced-motion:reduce){#hint span{animation:none;}}
   #done{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:var(--ink);color:#fff;
     padding:9px 18px;border-radius:999px;font-size:13px;font-weight:600;opacity:0;transition:opacity .5s;pointer-events:none;z-index:5;}
   #done.show{opacity:1;}
@@ -131,7 +140,7 @@
   </div>
 
   <div id="bookCard"></div>
-  <div id="hint">Scroll to reveal</div>
+  <div id="hint"><span>Scroll to reveal &darr;</span></div>
   <div id="done">&#10003; Complete</div>
 
 <script>
@@ -311,8 +320,9 @@
 
       done.classList.toggle("show",p>0.92);
       bookCard.classList.toggle("show",p>0.92&&bookCard.dataset.ready==="1");
-      if(p>0.9){hint.textContent="Try your own colours ↘";hint.style.opacity=1;}
-      else hint.style.opacity=p>0.02?0:1;
+      const hintText=hint.firstElementChild;
+      if(p>0.9){hintText.textContent="Try your own colours ↘";hint.classList.add("end");hint.style.opacity=1;}
+      else{hintText.textContent="Scroll to reveal ↓";hint.classList.remove("end");hint.style.opacity=p>0.02?0:1;}
     }
     addEventListener("scroll",()=>{if(!ticking){ticking=true;requestAnimationFrame(update);}},{passive:true});
     addEventListener("resize",update);
