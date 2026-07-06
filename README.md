@@ -13,8 +13,8 @@ your own five colours — one per tone.
 
 - **Scroll to colour** — the whole artwork completes itself as you scroll;
   scrolling backwards rewinds it.
-- **Your own colours** — five colour wells, one per tone (lightest → darkest),
-  plus ready-made palettes.
+- **Your own colours** — five colour wells, one per tone (1 darkest → 5
+  lightest, like the books), plus ready-made duotone palettes.
 - **Hide circles** — drop the outlines to admire the pure flat-colour version.
 - **Multiple artworks** — switch between pieces, each tagged with the book it
   comes from, with a cover card at the finish.

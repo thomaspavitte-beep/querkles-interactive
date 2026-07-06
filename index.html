@@ -127,7 +127,7 @@
     <hr />
     <div class="pLabel">Your colours</div>
     <div id="wells"></div>
-    <div id="toneTip">Lightest &rarr; darkest works best.</div>
+    <div id="toneTip">1 darkest &rarr; 5 lightest works best.</div>
   </div>
 
   <div id="bookCard"></div>
@@ -148,13 +148,18 @@
   const done=document.getElementById("done");
   const bookCard=document.getElementById("bookCard");
 
-  /* ---------- palettes (tone 1 lightest ... tone 5 darkest) ---------- */
+  /* ---------- palettes ----------
+     Stored lightest -> darkest (the reveal order). The key displays them
+     reversed: 1 = darkest ... 5 = lightest, matching the books.
+     Each ramp shifts hue between two colours while keeping the tonal values
+     of the original greys (≈216 / 174 / 130 / 87 / 38 luminance). */
   const PRESETS=[
-    {name:"Graphite",   tones:["#d1d3d4","#a7a9ac","#808285","#58595b","#231f20"]},
-    {name:"Terracotta", tones:["#f7ddc8","#eeb894","#d98a5b","#b05a30","#5f2a14"]},
-    {name:"Ocean",      tones:["#d9e6f2","#aac7e3","#6f9cc9","#3d6699","#1a2f52"]},
-    {name:"Moss",       tones:["#e0e9d3","#bad3a2","#8bb069","#557d3c","#26401b"]},
-    {name:"Ultraviolet",tones:["#ead9f6","#cfa9e9","#a672d3","#7439a6","#3a1260"]}
+    {name:"Graphite", tones:["#d1d3d4","#a7a9ac","#808285","#58595b","#231f20"]},
+    {name:"Sunset",   tones:["#f6d792","#f0a35e","#d96a63","#953f77","#3d1a55"]}, // yellow -> violet
+    {name:"Lagoon",   tones:["#e8ecc9","#8cc7a9","#4a9995","#27637c","#0f2940"]}, // lime -> deep blue
+    {name:"Orchid",   tones:["#f6dde2","#d9aed3","#9f7cbf","#5b4f96","#22254f"]}, // pink -> indigo
+    {name:"Citrus",   tones:["#f4e9a9","#b3c96f","#659347","#3a6a38","#12301b"]}, // yellow -> forest
+    {name:"Dusk",     tones:["#f8dcc4","#e3a58f","#b7767e","#665073","#26264a"]}  // peach -> slate
   ];
 
   /* ---------- SVG helpers ---------- */
@@ -339,21 +344,22 @@
       b.dataset.tones=prTones.join();
       const strip=document.createElement("span");
       strip.className="strip";
-      for(const c of prTones){const i=document.createElement("i");i.style.background=c;strip.appendChild(i);}
+      for(const c of [...prTones].reverse()){const i=document.createElement("i");i.style.background=c;strip.appendChild(i);} // key order: 1 = darkest first
       b.appendChild(strip);
       b.appendChild(document.createTextNode(pr.name));
       b.addEventListener("click",()=>{tones=prTones.slice();applyTones();});
       presetsEl.appendChild(b);
     }
-    for(let i=0;i<NT;i++){
+    // wells shown in key order: 1 = darkest ... NT = lightest
+    for(let i=NT-1;i>=0;i--){
       const d=document.createElement("label");
       d.className="well";
       const inp=document.createElement("input");
       inp.type="color";inp.value=tones[i];
       inp.addEventListener("input",()=>{tones[i]=inp.value;applyTones();});
       d.appendChild(inp);
-      d.appendChild(document.createTextNode(i+1));
-      wellsEl.appendChild(d);wells.push(inp);
+      d.appendChild(document.createTextNode(NT-i));
+      wellsEl.appendChild(d);wells[i]=inp;
     }
     applyTones();
   }
