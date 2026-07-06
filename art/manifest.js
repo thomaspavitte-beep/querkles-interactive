@@ -23,5 +23,12 @@ window.QUERKLES_MANIFEST = [
     book: "Querkles",
     cover: "covers/querkles.jpg",
     buy: ""
+  },
+  {
+    id: "fox",
+    title: "Fox",
+    book: "Querkles: Animals",
+    cover: "covers/animals.jpg",
+    buy: ""
   }
 ];
