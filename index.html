@@ -54,10 +54,21 @@
     transition:opacity .4s;pointer-events:none;z-index:4;}
   #hint span{animation:hintBounce 1.8s ease-in-out infinite;}
   @keyframes hintBounce{0%,100%{transform:translateY(0);}50%{transform:translateY(7px);}}
-  /* end hint: small, tucked at the bottom so it never covers the finished artwork */
-  #hint.end{inset:auto 0 26px 0;display:block;text-align:center;font-size:13px;font-weight:400;}
-  #hint.end span{animation:none;}
   @media (prefers-reduced-motion:reduce){#hint span{animation:none;}}
+
+  /* "from a distance" mini view — live <use> mirror of the artwork */
+  #mini{position:fixed;left:20px;bottom:22px;width:140px;z-index:4;cursor:pointer;
+    opacity:0;pointer-events:none;transition:opacity .5s,width .3s ease;}
+  #mini.show{opacity:1;pointer-events:auto;}
+  #mini.big{width:280px;}
+  #miniSvg{display:block;width:100%;height:auto;background:#fff;
+    border:1px solid #d7dbe0;border-radius:10px;}
+  #miniLabel{font-size:11px;color:var(--muted);text-align:center;margin-top:5px;}
+  @media (max-width:600px){
+    #mini{width:92px;left:16px;}
+    #mini.big{width:180px;}
+    #miniLabel{display:none;}
+  }
   #done{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:var(--ink);color:#fff;
     padding:9px 18px;border-radius:999px;font-size:13px;font-weight:600;opacity:0;transition:opacity .5s;pointer-events:none;z-index:5;}
   #done.show{opacity:1;}
@@ -139,6 +150,11 @@
     <div id="toneTip">1 darkest &rarr; 5 lightest works best.</div>
   </div>
 
+  <div id="mini" title="How it looks from a distance">
+    <svg id="miniSvg" xmlns="http://www.w3.org/2000/svg"><use href="#artRoot"/></svg>
+    <div id="miniLabel">from a distance</div>
+  </div>
+
   <div id="bookCard"></div>
   <div id="hint"><span>Scroll to reveal &darr;</span></div>
   <div id="done">&#10003; Complete</div>
@@ -156,6 +172,8 @@
   const hint=document.getElementById("hint");
   const done=document.getElementById("done");
   const bookCard=document.getElementById("bookCard");
+  const mini=document.getElementById("mini");
+  mini.addEventListener("click",()=>mini.classList.toggle("big"));
 
   /* ---------- palettes ----------
      Stored lightest -> darkest (the reveal order). The key displays them
@@ -238,6 +256,11 @@
     const vb=(circlesRoot.getAttribute("viewBox")||"0 0 800 1100").split(/[\s,]+/).map(Number);
     art.setAttribute("viewBox",vb.join(" "));
     art.style.setProperty("--ar",vb[2]/vb[3]);
+    // everything the boot appends lives inside #artRoot so the mini's <use> mirrors it
+    const artRoot=document.createElementNS(svgNS,"g");
+    artRoot.setAttribute("id","artRoot");
+    art.appendChild(artRoot);
+    document.getElementById("miniSvg").setAttribute("viewBox",vb.join(" "));
 
     // colours below, registered into the circles' coordinate space
     const off=autoOffset(coloursRoot,circlesRoot)||entry.offset||[0,0];
@@ -253,7 +276,7 @@
       g.style.opacity=0;
       colourLayer.appendChild(g);
     });
-    art.appendChild(colourLayer);
+    artRoot.appendChild(colourLayer);
     const NT=toneGroups.length;
 
     // circles on top, one group per circle
@@ -263,7 +286,7 @@
     if(circleGroups.length<10)
       circleGroups=[...circlesRoot.children].filter(el=>el.tagName==="g");
     for(const g of circleGroups){g.removeAttribute("class");circleLayer.appendChild(g);}
-    art.appendChild(circleLayer);
+    artRoot.appendChild(circleLayer);
     const NC=circleGroups.length;
 
     // per-artwork HUD
@@ -293,6 +316,7 @@
 
     /* ----- scroll choreography ----- */
     const CIRC_A=0.02,CIRC_B=0.26,TONE_A=0.28,TONE_W=0.6/NT;
+    const SHRINK_A=0.90,SHRINK_B=0.97,DONE_AT=0.955; // step-back finale window
     const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
     let cutoff=0,ticking=false;
 
@@ -318,11 +342,15 @@
       if(p<TONE_A-0.005)count.textContent="Circle "+cutoff+" / "+NC;
       else count.textContent="Tone "+toneDone+" / "+NT;
 
-      done.classList.toggle("show",p>0.92);
-      bookCard.classList.toggle("show",p>0.92&&bookCard.dataset.ready==="1");
-      const hintText=hint.firstElementChild;
-      if(p>0.9){hintText.textContent="Try your own colours ↘";hint.classList.add("end");hint.style.opacity=1;}
-      else{hintText.textContent="Scroll to reveal ↓";hint.classList.remove("end");hint.style.opacity=p>0.02?0:1;}
+      // step-back finale: the finished piece scales down (uniform, so
+      // registration is safe) and the completion card sits in the freed
+      // space below it — never over the artwork
+      const shrink=clamp((p-SHRINK_A)/(SHRINK_B-SHRINK_A),0,1);
+      art.style.transform=shrink>0?"scale("+(1-shrink*0.62).toFixed(4)+")":"";
+      mini.classList.toggle("show",p>TONE_A&&p<SHRINK_A);
+      done.classList.toggle("show",p>DONE_AT);
+      bookCard.classList.toggle("show",p>DONE_AT&&bookCard.dataset.ready==="1");
+      hint.style.opacity=p>0.02?0:1;
     }
     addEventListener("scroll",()=>{if(!ticking){ticking=true;requestAnimationFrame(update);}},{passive:true});
     addEventListener("resize",update);
